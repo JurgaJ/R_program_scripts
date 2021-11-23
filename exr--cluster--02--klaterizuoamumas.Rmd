@@ -1,0 +1,157 @@
+---
+title:    "Klasterizuojamumo tikrinimas"
+date:     "`r Sys.Date()`" # Automatic date
+output:
+  html_document:
+    fig_caption: yes
+    number_sections: yes
+    toc:       yes
+    toc_float: yes
+    toc_depth: 3
+    df_print:     paged    
+    highlight:    pygments 
+    code_folding: hide     
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+Sys.setlocale(locale = "Lithuanian")
+
+# Chunk options
+knitr::opts_chunk$set(
+  echo       = TRUE,    
+  eval       = TRUE,    
+  fig.height = 3,       
+  fig.width  = 6,       
+  fig.align  = "center" 
+)
+
+```
+
+
+# Duomenys
+
+## Tikrieji duomenys
+
+```{r}
+df <- iris          
+
+```
+
+Turi likti tik kiekybiniai stulpeliai.
+
+```{r}
+df <- df %>% select_if(is.numeric)
+```
+
+## Atsitikriniai duomenys
+
+```{r}
+set.seed(1)
+random_df <-
+  df %>% purrr::map_dfc(~runif(n = length(.), min = min(.), max = max(.)))
+```
+
+## Suvestinė
+
+```{r}
+dplyr::glimpse(df)
+```
+
+```{r}
+summary(df)
+```
+
+```{r}
+dplyr::glimpse(random_df)
+```
+
+```{r}
+summary(random_df)
+```
+
+
+## Standartizavimas
+
+```{r}
+df <- scale(df)
+random_df <- scale(random_df)
+```
+
+# Klasterizuojamumo vertinimas naudojant PCA
+
+```{r}
+ggpubr::ggarrange(
+  # Klasteriai yra
+  factoextra::fviz_pca_ind(prcomp(df), geom = "point", alpha.ind = 0.5) +
+    ggtitle("Klasteriai yra"),
+  # Klasterių nėra
+  factoextra::fviz_pca_ind(prcomp(random_df), geom = "point", alpha.ind = 0.5) +
+    ggtitle("Klasterių nėra")
+)
+
+```
+
+# Klasterizuojamumo vertinimas atvaizduojant atstumų/nepanašumų matricą
+
+
+```{r}
+hc_metric = "euclidean"
+
+dist_df     <- dist(df,        method = hc_metric)
+dist_random <- dist(random_df, method = hc_metric)
+
+ggpubr::ggarrange(
+  # Klasteriai yra
+  factoextra::fviz_dist(dist_df, order = TRUE, show_labels = FALSE) +
+    ggtitle("Klasteriai yra"),
+  # Klasterių nėra
+  factoextra::fviz_dist(dist_random, order = TRUE, show_labels = FALSE) +
+    ggtitle("Klasterių nėra")
+)
+```
+
+# Dendogramų lyginimas
+
+
+```{r}
+hc_method = "ward.D2"
+
+hclust_df     <- hclust(dist_df,     method = hc_method)
+hclust_random <- hclust(dist_random, method = hc_method)
+h_max <- max(hclust_df$height, hclust_random$height)
+
+ggpubr::ggarrange(
+  # Klasteriai yra
+  factoextra::fviz_dend(hclust_df, show_labels = FALSE) +
+    ggtitle("Klasteriai yra") +
+    ylim(0, h_max),
+  # Klasterių nėra
+  factoextra::fviz_dend(hclust_random, show_labels = FALSE) +
+    ggtitle("Klasterių nėra") +
+    ylim(0, h_max)
+)
+```
+
+# Klasterizuojamumo vertinimas naudojant Hopkins statistiką
+
+```{r}
+hopkins_rez <-
+  data.frame(
+    dataset = c("Your data", "Random data (without clusters)"),
+    hopkins_stat = c(
+      # Klasteriai yra
+      factoextra::get_clust_tendency(
+        df, n = nrow(df) - 1, graph = FALSE
+      )$hopkins_stat,
+
+      # Klasterių nėra
+      factoextra::get_clust_tendency(
+        random_df, n = nrow(random_df) - 1, graph = FALSE
+      )$hopkins_stat
+
+    ) %>% round(digits = 3)
+  )
+hopkins_rez
+```
